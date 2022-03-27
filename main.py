@@ -1,8 +1,9 @@
 import pygame
 import colorsys
 import random
+import itertools
 
-hsvl = [(0,0,0)] * 500
+hsvl = [(0,0,0)] * 50000
 surfaces = [pygame.Surface((10, 10))] * 10
 
 beziers = [[2,360] for _ in range(500)]
@@ -11,6 +12,16 @@ beziers = [[2,360] for _ in range(500)]
 # 1: Wieviel Grad drehen, GRADSPEICHER (DO NOT MODIFY), Framesspeicher (DO NOT MODIFY),
 rotate = [1,1,0,0]
 
+
+def advance(iterator, step):
+    next(itertools.islice(iterator, step, step), None)
+
+
+def tuplewize(iterable, size):
+    iterators = itertools.tee(iterable, size)
+    for position, iterator in enumerate(iterators):
+        advance(iterator, position)
+    return zip(*iterators)
 """
 bezier.py - Calculates a bezier curve from control points. 
  
@@ -177,6 +188,7 @@ def draw(screen, etc) :
     
     
     b=0
+    pc=0
     for x in range(0, count, 1):
         control_points = [vec2d(640,360)] * parts
         for y in range(0, parts, 1):
@@ -195,7 +207,11 @@ def draw(screen, etc) :
         #control_points = [vec2d(640,360), vec2d(807,250), vec2d(974,380), vec2d(1141,520)]
         b_points = compute_bezier_points([(z.x, z.y) for z in control_points])
         surfaces[x] = pygame.Surface((1280, 720), pygame.SRCALPHA)
-        pygame.draw.lines(surfaces[x], hsvcolor(x,300,360,3,50,int(etc.knob3*100),2,50,int(etc.knob4*100),2), False, b_points, 10)
+        
+        ci=x*pc
+        for z in tuplewize(b_points, 2):
+            pc+=1
+            pygame.draw.line(surfaces[x], hsvcolor(ci,0,360,3,50,int(etc.knob4*100),2,50,int(etc.knob5*100),2), z[0],z[1], 10)
         
         # 1: Wieviel Grad drehen, bei wieviel Frames, GRADSPEICHER (DO NOT MODIFY), Framesspeicher (DO NOT MODIFY),
 
