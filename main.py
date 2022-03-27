@@ -191,7 +191,7 @@ def draw(screen, etc) :
                 control_points[y] = vec2d(640+(y*partlength),bezierdot)
                 beziers[b][0] = bezierdot
             b+=1
-        # Unkommentieren für eine hart kodierte bezier linie
+        # Unkommentieren fuer eine hart kodierte bezier linie
         #control_points = [vec2d(640,360), vec2d(807,250), vec2d(974,380), vec2d(1141,520)]
         b_points = compute_bezier_points([(z.x, z.y) for z in control_points])
         surfaces[x] = pygame.Surface((1280, 720), pygame.SRCALPHA)
