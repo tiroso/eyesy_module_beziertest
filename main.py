@@ -209,9 +209,11 @@ def draw(screen, etc) :
         surfaces[x] = pygame.Surface((1280, 720), pygame.SRCALPHA)
         
         ci=x*pc
+        lt=1
         for z in tuplewize(b_points, 2):
             pc+=1
-            pygame.draw.line(surfaces[x], hsvcolor(ci,0,360,3,50,int(etc.knob4*100),2,50,int(etc.knob5*100),2), z[0],z[1], 10)
+            lt*=1.2
+            pygame.draw.line(surfaces[x], hsvcolor(ci,0,360,3,50,int(etc.knob4*100),2,50,int(etc.knob5*100),2), z[0],z[1], int(lt))
         
         # 1: Wieviel Grad drehen, bei wieviel Frames, GRADSPEICHER (DO NOT MODIFY), Framesspeicher (DO NOT MODIFY),
 
