@@ -1,7 +1,6 @@
 import pygame
 import colorsys
 import random
-import bezier
 
 hsvl = [(0,0,0)] * 500
 surfaces = [pygame.Surface((10, 10))] * 10
@@ -11,6 +10,89 @@ beziers = [[2,360] for _ in range(500)]
 #Wie schnell rotieren
 # 1: Wieviel Grad drehen, GRADSPEICHER (DO NOT MODIFY), Framesspeicher (DO NOT MODIFY),
 rotate = [1,1,0,0]
+
+"""
+bezier.py - Calculates a bezier curve from control points. 
+ 
+2007 Victor Blomqvist
+Released to the Public Domain
+"""
+import pygame
+from pygame.locals import *
+
+class vec2d(object):
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y    
+
+def compute_bezier_points(vertices, numPoints=None):
+    if numPoints is None:
+        numPoints = 30
+    #if numPoints < 2 or len(vertices) != 4:
+    if numPoints < 2:
+        return None
+
+    result = []
+
+    b0x = vertices[0][0]
+    b0y = vertices[0][1]
+    b1x = vertices[1][0]
+    b1y = vertices[1][1]
+    b2x = vertices[2][0]
+    b2y = vertices[2][1]
+    b3x = vertices[3][0]
+    b3y = vertices[3][1]
+
+
+
+    # Compute polynomial coefficients from Bezier points
+    ax = -b0x + 3 * b1x + -3 * b2x + b3x
+    ay = -b0y + 3 * b1y + -3 * b2y + b3y
+
+    bx = 3 * b0x + -6 * b1x + 3 * b2x
+    by = 3 * b0y + -6 * b1y + 3 * b2y
+
+    cx = -3 * b0x + 3 * b1x
+    cy = -3 * b0y + 3 * b1y
+
+    dx = b0x
+    dy = b0y
+
+    # Set up the number of steps and step size
+    numSteps = numPoints - 1 # arbitrary choice
+    h = 1.0 / numSteps # compute our step size
+
+    # Compute forward differences from Bezier points and "h"
+    pointX = dx
+    pointY = dy
+
+    firstFDX = ax * (h * h * h) + bx * (h * h) + cx * h
+    firstFDY = ay * (h * h * h) + by * (h * h) + cy * h
+
+
+    secondFDX = 6 * ax * (h * h * h) + 2 * bx * (h * h)
+    secondFDY = 6 * ay * (h * h * h) + 2 * by * (h * h)
+
+    thirdFDX = 6 * ax * (h * h * h)
+    thirdFDY = 6 * ay * (h * h * h)
+
+    # Compute points at each step
+    result.append((int(pointX), int(pointY)))
+
+    for i in range(numSteps):
+        pointX += firstFDX
+        pointY += firstFDY
+
+        firstFDX += secondFDX
+        firstFDY += secondFDY
+
+        secondFDX += thirdFDX
+        secondFDY += thirdFDY
+
+        result.append((int(pointX), int(pointY)))
+
+    return result
+
 
 def blitRotate(surf, image, pos, originPos, angle):
 
@@ -96,9 +178,9 @@ def draw(screen, etc) :
     
     b=0
     for x in range(0, count, 1):
-        control_points = [bezier.vec2d(640,360)] * parts
+        control_points = [vec2d(640,360)] * parts
         for y in range(0, parts, 1):
-            if y == 0: control_points[y] = bezier.vec2d(640,360)
+            if y == 0: control_points[y] = vec2d(640,360)
             if y > 0:
                 bezierdot = 360 + random.randint((-100-(y*40)),(100+(y*40)))#
                 bezierspeed = 5
@@ -106,12 +188,12 @@ def draw(screen, etc) :
                     beziers[b][1] = bezierdot
                 if beziers[b][0] > beziers[b][1]: bezierdot = beziers[b][0] - random.randint(0,(bezierspeed*y))
                 if beziers[b][0] < beziers[b][1]: bezierdot = beziers[b][0] + random.randint(0,(bezierspeed*y))
-                control_points[y] = bezier.vec2d(640+(y*partlength),bezierdot)
+                control_points[y] = vec2d(640+(y*partlength),bezierdot)
                 beziers[b][0] = bezierdot
             b+=1
         # Unkommentieren für eine hart kodierte bezier linie
-        #control_points = [bezier.vec2d(640,360), bezier.vec2d(807,250), bezier.vec2d(974,380), bezier.vec2d(1141,520)]
-        b_points = bezier.compute_bezier_points([(z.x, z.y) for z in control_points])
+        #control_points = [vec2d(640,360), vec2d(807,250), vec2d(974,380), vec2d(1141,520)]
+        b_points = compute_bezier_points([(z.x, z.y) for z in control_points])
         surfaces[x] = pygame.Surface((1280, 720), pygame.SRCALPHA)
         pygame.draw.lines(surfaces[x], hsvcolor(x,300,360,3,50,int(etc.knob3*100),2,50,int(etc.knob4*100),2), False, b_points, 10)
         
