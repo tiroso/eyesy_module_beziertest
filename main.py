@@ -2,16 +2,20 @@ import pygame
 import colorsys
 import random
 import itertools
+import math
 
-hsvl = [(0,0,0)] * 50000
-surfaces = [pygame.Surface((10, 10))] * 10
 
-beziers = [[2,360] for _ in range(500)]
+hsvl = [(random.randint(0,360),random.randint(0,100),random.randint(0,100)) for _ in range(100 * 20 * 4)]
+beziers = [[random.randint(0,360),random.randint(0,360)] for _ in range(100 * 20)]
+rotate = [0,0]
 
-#Wie schnell rotieren
-# 1: Wieviel Grad drehen, GRADSPEICHER (DO NOT MODIFY), Framesspeicher (DO NOT MODIFY),
-rotate = [1,1,0,0]
-
+def mapFromTo(x,a,b,c,d):
+    #x:input value; 
+    #a,b:input range
+    #c,d:output range
+    #y:return value
+    y=(x-a)/(b-a)*(d-c)+c
+    return y
 
 def advance(iterator, step):
     next(itertools.islice(iterator, step, step), None)
@@ -104,33 +108,6 @@ def compute_bezier_points(vertices, numPoints=None):
 
     return result
 
-
-def blitRotate(surf, image, pos, originPos, angle):
-
-    # offset from pivot to center
-    image_rect = image.get_rect(topleft = (pos[0] - originPos[0], pos[1]-originPos[1]))
-    offset_center_to_pivot = pygame.math.Vector2(pos) - image_rect.center
-    
-    # roatated offset from pivot to center
-    rotated_offset = offset_center_to_pivot.rotate(-angle)
-
-    # roatetd image center
-    rotated_image_center = (pos[0] - rotated_offset.x, pos[1] - rotated_offset.y)
-
-    # get a rotated image
-    rotated_image = pygame.transform.rotate(image, angle)
-    rotated_image_rect = rotated_image.get_rect(center = rotated_image_center)
-
-    # rotate and blit the image
-    surf.blit(rotated_image, rotated_image_rect)
-  
-    # draw rectangle around the image
-    #pygame.draw.rect(surf, (255, 0, 0), (*rotated_image_rect.topleft, *rotated_image.get_size()),2)
-
-
-for x in range(0, 500, 1):
-    hsvl[x] = (random.randint(0,360),random.randint(0,100),random.randint(0,100))
-
 def hsv2rgb(h,s,v):
     return tuple(round(i * 255) for i in colorsys.hsv_to_rgb(float(h) / 360, float(s) / 100, float(v) / 100))
 
@@ -181,49 +158,100 @@ def setup(screen, etc) :
 def draw(screen, etc) :
     global beziers,rotate
     
-    length = int(etc.knob2*620)
-    parts = 4
-    partlength = int(length/(parts-1))
-    count = int(etc.knob1*4)
+    #Anzahl der Bezier linien
+    max_bezier_lines = int(etc.knob1*30) 
+    #Maximale Laenge der Bezier linien
+    max_bezier_length = int(etc.knob2*620) 
+    #Lange der Bezierlinien wird durch Audio beeinflusst - 0 deaktiviert - 1 aktiviert
+    bezieraudio_length = 1
+    #Minimal Laenge der Bezier linien
+    min_bezier_length = 50
+    #MaximalSprunge innerhalb einer Bezierkurve
+    bezier_inner_move = 5
+    # statische bezier lines zum testen
+    static_bezier_lines = 0 
+    #Start Dicke der Bezierlinien
+    bezier_start_thickness = 1 
+    #Dicke der Bezierlinie nach aussen- Linear nicht exponentiell
+    bezier_thicker = 2 
+    #Bezier Connectoren sind kreise zwischen den linien- 1 mit kreisen - 0 ohne kreise
+    bezier_connector = 1 
+    #Farbmodus der Bezierblume
+    # - 0 Alle Straenge gleiche Farbe
+    # - 1 Jeder Strang eine eigene Farbe
+    # - 2 Jeder Teilabschnitt jeden Strangs eine eigene Farbe
+    bezier_color_mode = 1
+    #Positionierung der Bezierblume - x-Achse
+    bezier_x = etc.xres / 2 
+    #Positionierung der Bezierblume - y-Achse
+    bezier_y = etc.yres / 2 
+    # rotationsparameter - Sprungweite in Grad
+    rotatestep = 1 
+    #rotationsparameter - Bei wieviel gezaehlten Frames soll gesprungen werden
+    rotatespeed = 1 + int(etc.knob3 *29)
     
     
-    b=0
+    # DO NOT MODIFY
+    bezier_line_counter=0
+    bezier_linepart_counter=0
     pc=0
-    for x in range(0, count, 1):
-        control_points = [vec2d(640,360)] * parts
-        for y in range(0, parts, 1):
-            if y == 0: control_points[y] = vec2d(640,360)
-            if y > 0:
-                bezierdot = 360 + random.randint((-100-(y*40)),(100+(y*40)))#
-                bezierspeed = 5
-                if abs(abs(beziers[b][0])-abs(beziers[b][1])) < (bezierspeed*y) + 1: 
-                    beziers[b][1] = bezierdot
-                if beziers[b][0] > beziers[b][1]: bezierdot = beziers[b][0] - random.randint(0,(bezierspeed*y))
-                if beziers[b][0] < beziers[b][1]: bezierdot = beziers[b][0] + random.randint(0,(bezierspeed*y))
-                control_points[y] = vec2d(640+(y*partlength),bezierdot)
-                beziers[b][0] = bezierdot
-            b+=1
-        # Unkommentieren fuer eine hart kodierte bezier linie
-        #control_points = [vec2d(640,360), vec2d(807,250), vec2d(974,380), vec2d(1141,520)]
-        b_points = compute_bezier_points([(z.x, z.y) for z in control_points])
-        surfaces[x] = pygame.Surface((1280, 720), pygame.SRCALPHA)
-        
-        ci=x*pc
-        lt=1
-        for z in tuplewize(b_points, 2):
-            pc+=1
-            lt*=1.2
-            pygame.draw.line(surfaces[x], hsvcolor(ci,0,360,3,50,int(etc.knob4*100),2,50,int(etc.knob5*100),2), z[0],z[1], int(lt))
-        
-        # 1: Wieviel Grad drehen, bei wieviel Frames, GRADSPEICHER (DO NOT MODIFY), Framesspeicher (DO NOT MODIFY),
-
-        rotatestep = rotate[0] + int(etc.knob3 *10)
-        rotatespeed = rotate[1]
-        if rotate[2]>359: rotate[2]=0
-        blitRotate(screen, surfaces[x], (640,360), (640,360), int(x*(360/count)+rotate[2]))
-        rotate[3]+=1
-        if rotate[3]>rotatespeed:
-            rotate[2]+=rotatestep
-            rotate[3]=0
-        
     
+    for x in range(0, max_bezier_lines, 1):
+        bezier_length = max_bezier_length
+        min_audio_channel = math.floor(x*(100/max_bezier_lines))
+        max_audio_channel = math.floor((x+1)*(100/max_bezier_lines))
+        avg=0
+        for i in range(min_audio_channel, max_audio_channel) :
+            avg = abs(etc.audio_in[i]) + avg
+        avg = avg / (max_audio_channel-min_audio_channel)
+        if bezieraudio_length:
+            bezier_length = mapFromTo(avg,0,32768,0,max_bezier_length)
+        parts = 4
+        if bezier_length<min_bezier_length: bezier_length=min_bezier_length
+        partlength = int(bezier_length/(parts-1))
+        control_points = [vec2d(bezier_x,bezier_y)] * parts
+        for y in range(0, parts, 1):
+            if y == 0: control_points[y] = vec2d(bezier_x,bezier_y)
+            if y > 0:
+                bezierdot = bezier_y + random.randint((-100-(y*40)),(100+(y*40)))#
+                if abs(abs(beziers[bezier_line_counter][0])-abs(beziers[bezier_line_counter][1])) < (bezier_inner_move*y) + 1: 
+                    beziers[bezier_line_counter][1] = bezierdot
+                if beziers[bezier_line_counter][0] > beziers[bezier_line_counter][1]: bezierdot = beziers[bezier_line_counter][0] - random.randint(0,(bezier_inner_move*y))
+                if beziers[bezier_line_counter][0] < beziers[bezier_line_counter][1]: bezierdot = beziers[bezier_line_counter][0] + random.randint(0,(bezier_inner_move*y))
+                control_points[y] = vec2d(bezier_x+(y*partlength),bezierdot)
+                beziers[bezier_line_counter][0] = bezierdot
+            bezier_line_counter+=1
+        # Unkommentieren fuer eine hart kodierte bezier linie
+        if static_bezier_lines: control_points = [vec2d(640,360), vec2d(807,250), vec2d(974,380), vec2d(1141,520)]
+        b_points = compute_bezier_points([(z.x, z.y) for z in control_points])
+
+        if bezier_color_mode == 0:
+            color_instance=0
+        elif bezier_color_mode == 1:
+            color_instance=x
+        elif bezier_color_mode == 2:
+            color_instance=bezier_linepart_counter
+        else:
+            color_instance=0
+        lt=bezier_start_thickness
+        for z in tuplewize(b_points, 2):
+            if bezier_color_mode == 2:
+                color_instance=bezier_linepart_counter
+            bezier_linepart_counter+=1
+            lt+=bezier_thicker
+            color = hsvcolor(color_instance,0,360,10,50,int(etc.knob4*100),2,50,int(etc.knob5*100),2)
+            
+            startpoint = pygame.math.Vector2(bezier_x, bezier_y)
+            endpoint1 = pygame.math.Vector2(z[0][0]-bezier_x,z[0][1]-bezier_y)
+            endpoint2 = pygame.math.Vector2(z[1][0]-bezier_x,z[1][1]-bezier_y)
+            rotatepoint1 = startpoint + endpoint1.rotate(int(x*(360/max_bezier_lines))+rotate[0] % 360)
+            rotatepoint2 = startpoint + endpoint2.rotate(int(x*(360/max_bezier_lines))+rotate[0] % 360)
+            pygame.draw.line(screen, color, tuple(rotatepoint1),tuple(rotatepoint2), int(lt))
+            if bezier_connector: 
+                pygame.draw.circle(screen, color, rotatepoint1, int(lt/2)-2)
+                pygame.draw.circle(screen, color, rotatepoint2, int(lt/2)-2)
+
+        rotate[1]+=1
+        if rotate[1]>rotatespeed:
+            rotate[0]=rotate[0]+rotatestep % 360
+            rotate[1]=0
