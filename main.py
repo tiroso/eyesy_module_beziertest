@@ -3,19 +3,24 @@ import colorsys
 import random
 import itertools
 import math
+import time
 
 
-hsvl = [(random.randint(0,360),random.randint(0,100),random.randint(0,100)) for _ in range(100 * 20 * 4)]
-beziers = [[random.randint(0,360),random.randint(0,360)] for _ in range(100 * 20)]
+hsvl = [(random.randint(0,360),random.randint(0,100),random.randint(0,100)) for _ in range(100 * 30 * 4)]
+beziers = [[random.randint(0,360),random.randint(0,360)] for _ in range(100 * 30)]
 rotate = [0,0]
+cooldowntimer = [[0,0] for _ in range(100)]
 
 def mapFromTo(x,a,b,c,d):
     #x:input value; 
     #a,b:input range
     #c,d:output range
     #y:return value
-    y=(x-a)/(b-a)*(d-c)+c
-    return y
+    try:
+        y=(x-a)/(b-a)*(d-c)+c
+        return y
+    except:
+        return 0
 
 def advance(iterator, step):
     next(itertools.islice(iterator, step, step), None)
@@ -156,31 +161,51 @@ def setup(screen, etc) :
     pass
 
 def draw(screen, etc) :
-    global beziers,rotate
+    global beziers,rotate,cooldowntimer
     
     #Anzahl der Bezier linien
     max_bezier_lines = int(etc.knob1*30) 
     #Maximale Laenge der Bezier linien
-    max_bezier_length = int(etc.knob2*620) 
+    max_bezier_length = 620
     #Lange der Bezierlinien wird durch Audio beeinflusst - 0 deaktiviert - 1 aktiviert
     bezieraudio_length = 1
+    bezieraudio_maxvol = int(etc.knob3*16200) 
+    bezieraudiocooldown_step = 50
+    bezieraudiocooldown_speed = 1
     #Minimal Laenge der Bezier linien
     min_bezier_length = 50
-    #MaximalSprunge innerhalb einer Bezierkurve
+    #Maximal bewegungs innerhalb einer Bezierkurve
     bezier_inner_move = 5
-    # statische bezier lines zum testen
+    #wie weit darf sich die bezierkurve von der ujrsprungslinie entfernen
+    bezier_max_out = 100
+    #jeder abschnitt darf sich um einen faktor mit sich selber sich nochmals weiter entfernen
+    bezier_max_out_multi = 40
+    # statische bezier lines zum testen - 1 aktiv - 0 inaktiv
     static_bezier_lines = 0 
     #Start Dicke der Bezierlinien
     bezier_start_thickness = 1 
     #Dicke der Bezierlinie nach aussen- Linear nicht exponentiell
     bezier_thicker = 2 
     #Bezier Connectoren sind kreise zwischen den linien- 1 mit kreisen - 0 ohne kreise
-    bezier_connector = 1 
+    bezier_connector = 1
     #Farbmodus der Bezierblume
     # - 0 Alle Straenge gleiche Farbe
     # - 1 Jeder Strang eine eigene Farbe
     # - 2 Jeder Teilabschnitt jeden Strangs eine eigene Farbe
     bezier_color_mode = 1
+    bezier_min_hue=0
+    bezier_max_hue=360
+    bezier_min_saturation=80
+    bezier_max_saturation=100
+    bezier_min_value=60
+    bezier_max_value=100
+    #Farbsettings der Hintergrundfarbe
+    bg_min_hue=0
+    bg_max_hue=360
+    bg_min_saturation=80
+    bg_max_saturation=100
+    bg_min_value=60
+    bg_max_value=100
     #Positionierung der Bezierblume - x-Achse
     bezier_x = etc.xres / 2 
     #Positionierung der Bezierblume - y-Achse
@@ -188,13 +213,31 @@ def draw(screen, etc) :
     # rotationsparameter - Sprungweite in Grad
     rotatestep = 1 
     #rotationsparameter - Bei wieviel gezaehlten Frames soll gesprungen werden
-    rotatespeed = 1 + int(etc.knob3 *29)
+    rotatespeed = 1 + int(etc.knob2 *29)
     
     
     # DO NOT MODIFY
     bezier_line_counter=0
     bezier_linepart_counter=0
-    pc=0
+    
+    if etc.knob4 < 1.0 and etc.knob4 > 0.0:
+        bezier_min_hue=((etc.knob4*360)+1) % 360
+        bezier_max_hue=(bezier_min_hue+50) % 360
+    if etc.knob4 == 0: 
+        bezier_min_hue=((math.sin(time.time()))*360) % 360
+        bezier_max_hue=(bezier_min_hue+10) % 360
+    
+    bgcolor = hsvcolor(len(hsvl)-1,bg_min_hue,bg_max_hue,5,bg_min_saturation,bg_max_saturation,2,bg_min_value,bg_max_value,2)    
+    if etc.knob5 < 0.9 and etc.knob5 > 0.0:
+        bgcolor=hsv2rgb(((etc.knob5*360)+1) % 360,100,100)
+    if etc.knob5 < 1.0 and etc.knob5 >= 0.9:
+        bg_min_hue=((math.sin(time.time()))*720) % 360
+        bg_max_hue=(bg_min_hue+10) % 360
+        bgcolor = hsvcolor(len(hsvl)-1,bg_min_hue,bg_max_hue,5,bg_min_saturation,bg_max_saturation,2,bg_min_value,bg_max_value,2)
+    if etc.knob5 ==0.0:
+        bgcolor=(0,0,0)
+    
+    etc.bg_color = bgcolor
     
     for x in range(0, max_bezier_lines, 1):
         bezier_length = max_bezier_length
@@ -204,8 +247,22 @@ def draw(screen, etc) :
         for i in range(min_audio_channel, max_audio_channel) :
             avg = abs(etc.audio_in[i]) + avg
         avg = avg / (max_audio_channel-min_audio_channel)
+        avg+=1
+        avg = mapFromTo(avg,0,bezieraudio_maxvol,0,max_bezier_length)
+
         if bezieraudio_length:
-            bezier_length = mapFromTo(avg,0,32768,0,max_bezier_length)
+            bezier_length = cooldowntimer[x][0]
+            if avg > cooldowntimer[x][0]:
+                cooldowntimer[x][0]=avg
+                cooldowntimer[x][1]=0
+                bezier_length = cooldowntimer[x][0]
+            if cooldowntimer[x][1] >= bezieraudiocooldown_speed:
+                cooldowntimer[x][1]=0
+                bezier_length = cooldowntimer[x][0]
+                cooldowntimer[x][0]-=bezieraudiocooldown_step
+                if cooldowntimer[x][0]<0: cooldowntimer[x][0]=0
+            cooldowntimer[x][1]+=1
+            
         parts = 4
         if bezier_length<min_bezier_length: bezier_length=min_bezier_length
         partlength = int(bezier_length/(parts-1))
@@ -213,7 +270,7 @@ def draw(screen, etc) :
         for y in range(0, parts, 1):
             if y == 0: control_points[y] = vec2d(bezier_x,bezier_y)
             if y > 0:
-                bezierdot = bezier_y + random.randint((-100-(y*40)),(100+(y*40)))#
+                bezierdot = bezier_y + random.randint((-(bezier_max_out)-(y*bezier_max_out_multi)),((bezier_max_out)+(y*bezier_max_out_multi)))#
                 if abs(abs(beziers[bezier_line_counter][0])-abs(beziers[bezier_line_counter][1])) < (bezier_inner_move*y) + 1: 
                     beziers[bezier_line_counter][1] = bezierdot
                 if beziers[bezier_line_counter][0] > beziers[bezier_line_counter][1]: bezierdot = beziers[bezier_line_counter][0] - random.randint(0,(bezier_inner_move*y))
@@ -221,7 +278,6 @@ def draw(screen, etc) :
                 control_points[y] = vec2d(bezier_x+(y*partlength),bezierdot)
                 beziers[bezier_line_counter][0] = bezierdot
             bezier_line_counter+=1
-        # Unkommentieren fuer eine hart kodierte bezier linie
         if static_bezier_lines: control_points = [vec2d(640,360), vec2d(807,250), vec2d(974,380), vec2d(1141,520)]
         b_points = compute_bezier_points([(z.x, z.y) for z in control_points])
 
@@ -239,7 +295,7 @@ def draw(screen, etc) :
                 color_instance=bezier_linepart_counter
             bezier_linepart_counter+=1
             lt+=bezier_thicker
-            color = hsvcolor(color_instance,0,360,10,50,int(etc.knob4*100),2,50,int(etc.knob5*100),2)
+            color = hsvcolor(color_instance,bezier_min_hue,bezier_max_hue,5,bezier_min_saturation,bezier_max_saturation,2,bezier_min_value,bezier_max_value,2)
             
             startpoint = pygame.math.Vector2(bezier_x, bezier_y)
             endpoint1 = pygame.math.Vector2(z[0][0]-bezier_x,z[0][1]-bezier_y)
@@ -252,6 +308,7 @@ def draw(screen, etc) :
                 pygame.draw.circle(screen, color, rotatepoint2, int(lt/2)-2)
 
         rotate[1]+=1
-        if rotate[1]>rotatespeed:
+        if rotate[1]>=rotatespeed:
             rotate[0]=rotate[0]+rotatestep % 360
             rotate[1]=0
+
