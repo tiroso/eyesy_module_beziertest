@@ -10,6 +10,18 @@ hsvl = [(random.randint(0,360),random.randint(0,100),random.randint(0,100)) for 
 beziers = [[random.randint(0,360),random.randint(0,360)] for _ in range(100 * 30)]
 rotate = [0,0]
 cooldowntimer = [[0,0] for _ in range(100)]
+linebuffer=[]
+circlebuffer=[]
+last_screen = None
+
+def add_to_buffer( array,leng, value ):
+    global linebuffer,circlebuffer
+    if array == "line":
+        if len(linebuffer)==leng and leng>0: linebuffer.pop( 0 )
+        linebuffer.append( value )
+    if array == "circle":
+        if len(circlebuffer)==10000 and leng>0: circlebuffer.pop( 0 )
+        circlebuffer.append( value )
 
 def mapFromTo(x,a,b,c,d):
     #x:input value; 
@@ -161,7 +173,7 @@ def setup(screen, etc) :
     pass
 
 def draw(screen, etc) :
-    global beziers,rotate,cooldowntimer
+    global beziers,rotate,cooldowntimer,linebuffer,circlebuffer,last_screen
     
     #Anzahl der Bezier linien
     max_bezier_lines = int(etc.knob1*30) 
@@ -170,12 +182,14 @@ def draw(screen, etc) :
     #Lange der Bezierlinien wird durch Audio beeinflusst - 0 deaktiviert - 1 aktiviert
     bezieraudio_length = 1
     bezieraudio_maxvol = int(etc.knob3*16200) 
-    bezieraudiocooldown_step = 50
+    bezieraudiocooldown_step = 10
     bezieraudiocooldown_speed = 1
     #Minimal Laenge der Bezier linien
     min_bezier_length = 50
     #Maximal bewegungs innerhalb einer Bezierkurve
     bezier_inner_move = 5
+    # starke des beziertrails 0 - 255
+    bezier_trail=255
     #wie weit darf sich die bezierkurve von der ujrsprungslinie entfernen
     bezier_max_out = 100
     #jeder abschnitt darf sich um einen faktor mit sich selber sich nochmals weiter entfernen
@@ -220,6 +234,16 @@ def draw(screen, etc) :
     bezier_line_counter=0
     bezier_linepart_counter=0
     
+    if last_screen==None:
+        last_screen = pygame.Surface((1280, 720))
+        last_screen = last_screen.convert_alpha()
+        last_screen.fill((0, 0, 0, 0))
+    working_screen = pygame.Surface((1280, 720))
+    working_screen = last_screen.convert_alpha()
+    working_screen.fill((0, 0, 0, 0))
+    last_screen.set_alpha(bezier_trail)
+    working_screen.blit(last_screen, (0,0))
+    
     if etc.knob4 < 1.0 and etc.knob4 > 0.0:
         bezier_min_hue=((etc.knob4*360)+1) % 360
         bezier_max_hue=(bezier_min_hue+50) % 360
@@ -238,6 +262,11 @@ def draw(screen, etc) :
         bgcolor=(0,0,0)
     
     etc.bg_color = bgcolor
+    
+    #for x in (linebuffer):
+        # screen, color, tuple(rotatepoint1),tuple(rotatepoint2), int(lt)
+        #pygame.draw.line((xs for xs in x))
+        #pygame.draw.line(x[0],x[1],x[2],x[3],x[4])
     
     for x in range(0, max_bezier_lines, 1):
         bezier_length = max_bezier_length
@@ -302,13 +331,16 @@ def draw(screen, etc) :
             endpoint2 = pygame.math.Vector2(z[1][0]-bezier_x,z[1][1]-bezier_y)
             rotatepoint1 = startpoint + endpoint1.rotate(int(x*(360/max_bezier_lines))+rotate[0] % 360)
             rotatepoint2 = startpoint + endpoint2.rotate(int(x*(360/max_bezier_lines))+rotate[0] % 360)
-            pygame.draw.line(screen, color, tuple(rotatepoint1),tuple(rotatepoint2), int(lt))
+            pygame.draw.line(working_screen, color, tuple(rotatepoint1),tuple(rotatepoint2), int(lt))
+            add_to_buffer( "line", x*100, (screen, color, tuple(rotatepoint1),tuple(rotatepoint2), int(lt) ))
             if bezier_connector: 
-                pygame.draw.circle(screen, color, rotatepoint1, int(lt/2)-2)
-                pygame.draw.circle(screen, color, rotatepoint2, int(lt/2)-2)
-
+                pygame.draw.circle(working_screen, color, rotatepoint1, int(lt/2)-2)
+                add_to_buffer( "circle",x*100*20, (screen, color, rotatepoint1, int(lt/2)-2))
+                pygame.draw.circle(working_screen, color, rotatepoint2, int(lt/2)-2)
+                add_to_buffer( "circle",x*100*20, (screen, color, rotatepoint2, int(lt/2)-2))
         rotate[1]+=1
         if rotate[1]>=rotatespeed:
             rotate[0]=rotate[0]+rotatestep % 360
             rotate[1]=0
-
+    last_screen = working_screen
+    screen.blit(working_screen, (0,0))
