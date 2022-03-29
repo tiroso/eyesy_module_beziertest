@@ -182,14 +182,14 @@ def draw(screen, etc) :
     #Lange der Bezierlinien wird durch Audio beeinflusst - 0 deaktiviert - 1 aktiviert
     bezieraudio_length = 1
     bezieraudio_maxvol = int(etc.knob3*16200) 
-    bezieraudiocooldown_step = 10
+    bezieraudiocooldown_step = 50
     bezieraudiocooldown_speed = 1
     #Minimal Laenge der Bezier linien
     min_bezier_length = 50
     #Maximal bewegungs innerhalb einer Bezierkurve
     bezier_inner_move = 5
     # starke des beziertrails 0 - 255
-    bezier_trail=255
+    bezier_trail=253
     #wie weit darf sich die bezierkurve von der ujrsprungslinie entfernen
     bezier_max_out = 100
     #jeder abschnitt darf sich um einen faktor mit sich selber sich nochmals weiter entfernen
@@ -206,7 +206,8 @@ def draw(screen, etc) :
     # - 0 Alle Straenge gleiche Farbe
     # - 1 Jeder Strang eine eigene Farbe
     # - 2 Jeder Teilabschnitt jeden Strangs eine eigene Farbe
-    bezier_color_mode = 1
+    # - 3 Audio ausschlag farbe
+    bezier_color_mode = 0
     bezier_min_hue=0
     bezier_max_hue=360
     bezier_min_saturation=80
@@ -277,6 +278,9 @@ def draw(screen, etc) :
             avg = abs(etc.audio_in[i]) + avg
         avg = avg / (max_audio_channel-min_audio_channel)
         avg+=1
+        if bezier_color_mode == 3:
+            bezier_min_hue=mapFromTo(avg,0,bezieraudio_maxvol,bezier_min_hue,bezier_max_hue)
+            bezier_max_hue=mapFromTo(avg,0,bezieraudio_maxvol,bezier_min_hue,bezier_max_hue)
         avg = mapFromTo(avg,0,bezieraudio_maxvol,0,max_bezier_length)
 
         if bezieraudio_length:
